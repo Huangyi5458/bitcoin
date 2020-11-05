@@ -34,9 +34,11 @@ class ImportDescriptorsTest(BitcoinTestFramework):
                            ["-addresstype=bech32", "-keypool=5"]
                           ]
         self.setup_clean_chain = True
+        self.wallet_names = []
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
+        self.skip_if_no_sqlite()
 
     def test_importdesc(self, req, success, error_code=None, error_message=None, warnings=None, wallet=None):
         """Run importdescriptors and assert success"""
@@ -58,7 +60,7 @@ class ImportDescriptorsTest(BitcoinTestFramework):
 
     def run_test(self):
         self.log.info('Setting up wallets')
-        self.nodes[0].createwallet(wallet_name='w0', disable_private_keys=False)
+        self.nodes[0].createwallet(wallet_name='w0', disable_private_keys=False, descriptors=True)
         w0 = self.nodes[0].get_wallet_rpc('w0')
 
         self.nodes[1].createwallet(wallet_name='w1', disable_private_keys=True, blank=True, descriptors=True)
@@ -141,6 +143,14 @@ class ImportDescriptorsTest(BitcoinTestFramework):
                               success=True)
         assert_equal(w1.getwalletinfo()['keypoolsize'], 0)
 
+        test_address(w1,
+                     key.p2sh_p2wpkh_addr,
+                     ismine=True,
+                     solvable=True)
+
+        # Check persistence of data and that loading works correctly
+        w1.unloadwallet()
+        self.nodes[1].loadwallet('w1')
         test_address(w1,
                      key.p2sh_p2wpkh_addr,
                      ismine=True,
@@ -369,6 +379,10 @@ class ImportDescriptorsTest(BitcoinTestFramework):
         self.nodes[0].generate(6)
         self.sync_all()
         assert_equal(wmulti_pub.getbalance(), wmulti_priv.getbalance())
+
+        # Make sure that descriptor wallets containing multiple xpubs in a single descriptor load correctly
+        wmulti_pub.unloadwallet()
+        self.nodes[1].loadwallet('wmulti_pub')
 
         self.log.info("Multisig with distributed keys")
         self.nodes[1].createwallet(wallet_name="wmulti_priv1", descriptors=True)
